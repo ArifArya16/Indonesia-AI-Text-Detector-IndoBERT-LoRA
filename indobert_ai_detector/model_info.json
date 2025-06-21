@@ -1,0 +1,4 @@
+{
+  "model_name": "indobenchmark/indobert-base-p2",
+  "accuracy": 0.96,
+  "f1_score": 
