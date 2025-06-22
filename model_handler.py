@@ -36,7 +36,7 @@ def _load_model_cached():
         logger.info("Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            use_auth_token=hf_token,
+            token=hf_token,
             trust_remote_code=True
         )
         
@@ -46,7 +46,7 @@ def _load_model_cached():
             model_name,
             num_labels=2,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            use_auth_token=hf_token,
+            token=hf_token,
             trust_remote_code=True
         )
         
@@ -60,35 +60,7 @@ def _load_model_cached():
         
     except Exception as e:
         logger.error(f"Error loading model from Hugging Face: {str(e)}")
-        
-        # Fallback to local model if available
-        logger.info("Attempting to load local fallback model...")
-        try:
-            from peft import PeftModel
-            
-            logger.info("Loading local model as fallback...")
-            
-            # Load tokenizer
-            tokenizer = AutoTokenizer.from_pretrained("./indobert_ai_detector")
-            
-            # Load base model
-            base_model = AutoModelForSequenceClassification.from_pretrained(
-                Config.BASE_MODEL_NAME,
-                num_labels=2,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-            )
-            
-            # Load model with LoRA adapters
-            model = PeftModel.from_pretrained(base_model, "./indobert_ai_detector")
-            model = model.to(device)
-            model.eval()
-            
-            logger.info("Local fallback model loaded successfully")
-            return model, tokenizer, device
-            
-        except Exception as local_error:
-            logger.error(f"Local model loading failed: {str(local_error)}")
-            raise Exception(f"Both Hugging Face and local model loading failed. HF Error: {str(e)}, Local Error: {str(local_error)}")
+        raise Exception(f"Failed to load model from Hugging Face: {str(e)}")
 
 class ModelHandler:
     def __init__(self):
@@ -130,8 +102,8 @@ class ModelHandler:
             raise e
     
     def load_local_model(self):
-        """Fallback method to load local model (deprecated - now handled in cached function)"""
-        self.logger.warning("load_local_model is deprecated. Use load_model() instead.")
+        """Deprecated method - model is now only available on Hugging Face"""
+        self.logger.warning("load_local_model is deprecated. Model is now only available on Hugging Face Hub.")
         return self.load_model()
     
     def cleanup_model(self):
