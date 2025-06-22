@@ -173,8 +173,8 @@ class Utils:
             color_discrete_map={True: '#FF6B6B', False: '#4CAF50'}
         )
         
-        fig.add_hline(y=70, line_dash="dash", line_color="orange", 
-                     annotation_text="Threshold AI (70%)")
+        fig.add_hline(y=60, line_dash="dash", line_color="orange", 
+                     annotation_text="Threshold AI (60%)")
         
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
