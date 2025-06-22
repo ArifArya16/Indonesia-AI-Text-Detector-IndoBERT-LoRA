@@ -13,7 +13,7 @@ import os
 # Import custom modules
 from config import Config
 from auth import Auth
-from database import Database
+from firebase_database import FirebaseDatabase as Database
 from model_handler import ModelHandler
 from utils import Utils
 
@@ -125,15 +125,19 @@ class AITextDetectorApp:
         elif page == "📊 Dashboard":
             self.dashboard_page()
             st.session_state.analisis_text = None
+            st.session_state.analisis_text_history = None
         elif page == "📈 Riwayat":
             self.history_page()
             st.session_state.analisis_text = None
+            st.session_state.analisis_text_history = None
         elif page == "👤 Profil":
             self.profile_page()
             st.session_state.analisis_text = None
+            st.session_state.analisis_text_history = None
         elif page == "⚙️ Admin Panel" and self.auth.is_admin():
             self.admin_panel()
             st.session_state.analisis_text = None
+            st.session_state.analisis_text_history = None
         else:
             self.detection_page()
 
@@ -407,7 +411,7 @@ class AITextDetectorApp:
             """)
         
         # Analysis results
-        if analyze_button and input_text.strip() and st.session_state.analisis_text is None:
+        if analyze_button and input_text.strip():
             if not self.model_handler:
                 st.error("❌ Model belum dimuat. Silakan muat ulang halaman.")
                 return
@@ -494,18 +498,29 @@ class AITextDetectorApp:
                     if st.button("🚪  Login", use_container_width=True):
                         st.session_state.login = True
                         st.rerun()
-            
-            
-            if st.session_state.authenticated == True:
-                
-                # Save result
-                prediction_id = self.db.save_prediction(
-                    self.auth.get_current_user_id(),
-                    input_text,
-                    st.session_state.analisis_text['ai_probability'],
-                    st.session_state.analisis_text['is_ai_generated'],
-                    st.session_state.analisis_text['highlighted_parts']
-                )
+        
+            if st.session_state.authenticated == False:
+            # Save result
+                if st.session_state.analisis_text_history != st.session_state.analisis_text:
+                    prediction_id = self.db.save_prediction(
+                        "2",
+                        input_text,
+                        st.session_state.analisis_text['ai_probability'],
+                        st.session_state.analisis_text['is_ai_generated'],
+                        st.session_state.analisis_text['highlighted_parts']
+                    )
+                    st.session_state.analisis_text_history = st.session_state.analisis_text
+            elif st.session_state.authenticated == True:
+                if st.session_state.analisis_text_history != st.session_state.analisis_text:
+                    # Save result
+                    prediction_id = self.db.save_prediction(
+                        self.auth.get_current_user_id(),
+                        input_text,
+                        st.session_state.analisis_text['ai_probability'],
+                        st.session_state.analisis_text['is_ai_generated'],
+                        st.session_state.analisis_text['highlighted_parts']
+                    )
+                    st.session_state.analisis_text_history = st.session_state.analisis_text
                 
                 # Download result
                 col1, col2 = st.columns(2)
@@ -518,9 +533,9 @@ class AITextDetectorApp:
                         mime="application/json"
                     )
                 
-                with col2:
-                    if st.button("💾 Simpan ke Riwayat"):
-                        st.success(f"✅ Hasil disimpan dengan ID: {prediction_id}")
+                # with col2:
+                #     if st.button("💾 Simpan ke Riwayat"):
+                #         st.success(f"✅ Hasil disimpan dengan ID: {prediction_id}")
     
     def dashboard_page(self):
         if st.session_state.authenticated == True:
@@ -713,14 +728,14 @@ class AITextDetectorApp:
                         st.metric("Teks Manusia", user_stats['human_predictions'])
                         st.metric("Rata-rata AI Score", f"{user_stats['avg_ai_probability']:.1%}")
             
-            # Settings
-            st.markdown("---")
-            st.subheader("⚙️ Pengaturan")
+            # # Settings
+            # st.markdown("---")
+            # st.subheader("⚙️ Pengaturan")
             
-            if st.button("🗑️ Hapus Semua Riwayat", type="secondary"):
-                if st.confirm("Apakah Anda yakin ingin menghapus semua riwayat prediksi?"):
-                    # Implementation would require additional database method
-                    st.warning("Fitur ini akan segera tersedia.")
+            # if st.button("🗑️ Hapus Semua Riwayat", type="secondary"):
+            #     if st.confirm("Apakah Anda yakin ingin menghapus semua riwayat prediksi?"):
+            #         # Implementation would require additional database method
+            #         st.warning("Fitur ini akan segera tersedia.")
         else:
             main_interface()
     

@@ -4,7 +4,7 @@ Authentication functions for AI Text Detector
 
 import streamlit as st
 import re
-from database import Database
+from firebase_database import FirebaseDatabase as Database
 
 class Auth:
     def __init__(self):
@@ -123,6 +123,7 @@ class Auth:
                 del st.session_state[key]
         st.session_state.show_detailed_analysis = False
         st.session_state.analisis_text = None
+        st.session_state.analisis_text_history = None
         st.rerun()
     
     def check_authentication(self):
@@ -207,3 +208,5 @@ class Auth:
             st.session_state.show_detailed_analysis = False
         if 'analisis_text' not in st.session_state:
             st.session_state.analisis_text = None
+        if 'analisis_text_history' not in st.session_state:
+            st.session_state.analisis_text_history = None
