@@ -30,9 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AITextDetectorApp:
-    result = None
     def __init__(self):
-        
         Utils.set_page_config()
         Utils.apply_custom_css()
         
@@ -40,29 +38,57 @@ class AITextDetectorApp:
         self.db = Database()
         self.model_handler = None
         
+        # Initialize session states yang diperlukan
+        if 'show_detailed_analysis' not in st.session_state:
+            st.session_state.show_detailed_analysis = False
+        if 'analisis_text' not in st.session_state:
+            st.session_state.analisis_text = None
+        if 'analisis_text_history' not in st.session_state:
+            st.session_state.analisis_text_history = None
+        if 'login' not in st.session_state:
+            st.session_state.login = False
+        
         # Initialize session state
         self.auth.init_session_state()
         
-        # Initialize model handler if authenticated
-        # if self.auth.check_authentication():
+        # Initialize model handler
         self.init_model()
     
     def init_model(self):
-        """Initialize model handler"""
+        """Initialize model handler - FIXED VERSION"""
         if 'model_handler' not in st.session_state:
-            with st.spinner("🔄 Memuat model AI..."):
-                try:
+            try:
+                with st.spinner("🔄 Memuat model AI..."):
                     self.model_handler = ModelHandler()
-                    self.model_handler.load_model()
-                    st.session_state.model_handler = self.model_handler
-                    logger.info("Model loaded successfully")
-                except Exception as e:
-                    st.error(f"❌ Gagal memuat model: {str(e)}")
-                    logger.error(f"Failed to load model: {str(e)}")
-                    return False
+                    # Load model and store in session state
+                    loaded_handler = self.model_handler.load_model()
+                    st.session_state.model_handler = loaded_handler
+                    logger.info("Model loaded and cached successfully")
+                    return True
+            except Exception as e:
+                st.error(f"❌ Gagal memuat model: {str(e)}")
+                logger.error(f"Failed to load model: {str(e)}")
+                # Set fallback state
+                st.session_state.model_handler = None
+                return False
         else:
             self.model_handler = st.session_state.model_handler
-        return True
+            if self.model_handler and hasattr(self.model_handler, 'loaded') and self.model_handler.loaded:
+                return True
+            else:
+                # Model handler exists but not loaded, reload
+                try:
+                    with st.spinner("🔄 Memuat ulang model..."):
+                        if self.model_handler:
+                            self.model_handler.cleanup_model()
+                        self.model_handler = ModelHandler()
+                        loaded_handler = self.model_handler.load_model()
+                        st.session_state.model_handler = loaded_handler
+                        return True
+                except Exception as e:
+                    st.error(f"❌ Gagal memuat ulang model: {str(e)}")
+                    st.session_state.model_handler = None
+                    return False
     
     def main_interface(self):
         """Main application interface"""
@@ -377,8 +403,19 @@ class AITextDetectorApp:
 
     
     def detection_page(self):
-        """Text detection page"""
+        """Text detection page - FIXED VERSION"""
         st.header("🔍 Analisis Teks AI")
+        
+        # Check if model is available
+        if not self.model_handler or not getattr(self.model_handler, 'loaded', False):
+            st.error("❌ Model tidak tersedia. Silakan muat ulang halaman.")
+            if st.button("🔄 Muat Ulang Model"):
+                # Clear cache and reload
+                st.cache_resource.clear()
+                if 'model_handler' in st.session_state:
+                    del st.session_state.model_handler
+                st.rerun()
+            return
         
         # Input text area
         col1, col2 = st.columns([2, 1])
@@ -388,8 +425,13 @@ class AITextDetectorApp:
                 "Masukkan teks untuk dianalisis:",
                 height=300,
                 placeholder="Ketik atau paste teks di sini...",
-                help="Masukkan teks bahasa Indonesia yang ingin Anda periksa"
+                help="Masukkan teks bahasa Indonesia yang ingin Anda periksa",
+                max_chars=5000  # Batasi input untuk mencegah memory issue
             )
+            
+            # Validate input length
+            if input_text and len(input_text.split()) < 10:
+                st.warning("⚠️ Untuk hasil yang lebih akurat, masukkan teks minimal 10 kata.")
             
             analyze_button = st.button("🔬 Analisis Teks", type="primary", use_container_width=True)
         
@@ -399,8 +441,8 @@ class AITextDetectorApp:
             **Untuk hasil terbaik:**
             - Gunakan teks bahasa Indonesia
             - Minimal 50 kata untuk analisis akurat
+            - Maksimal 5000 karakter
             - Teks yang koheren dan lengkap
-            - Hindari teks yang terlalu pendek
             """)
             
             st.markdown("### 📊 Interpretasi Hasil")
@@ -412,22 +454,41 @@ class AITextDetectorApp:
         
         # Analysis results
         if analyze_button and input_text.strip():
-            if not self.model_handler:
+            if not self.model_handler or not getattr(self.model_handler, 'loaded', False):
                 st.error("❌ Model belum dimuat. Silakan muat ulang halaman.")
+                return
+            
+            # Validate input
+            if len(input_text) > 5000:
+                st.error("❌ Teks terlalu panjang. Maksimal 5000 karakter.")
                 return
             
             with st.spinner("🔄 Menganalisis teks..."):
                 try:
-                    # Get prediction
+                    # Get prediction with timeout handling
                     result = self.model_handler.predict_text(input_text)
                     st.session_state.analisis_text = result
+                    
+                    # Check for errors in result
+                    if 'error' in result:
+                        st.error(f"❌ Error dalam analisis: {result['error']}")
+                        return
                 
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat analisis: {str(e)}")
                     logger.error(f"Prediction error: {str(e)}")
                     
-        elif analyze_button:
-            st.warning("⚠️ Silakan masukkan teks terlebih dahulu!")
+                    # Try to cleanup and reload model
+                    try:
+                        if self.model_handler:
+                            self.model_handler.cleanup_model()
+                        st.cache_resource.clear()
+                        if 'model_handler' in st.session_state:
+                            del st.session_state.model_handler
+                        st.warning("Model akan dimuat ulang pada refresh berikutnya.")
+                    except:
+                        pass
+                    return
             
         # Display results
         if st.session_state.analisis_text != None:
