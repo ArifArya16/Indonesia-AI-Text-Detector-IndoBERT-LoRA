@@ -60,10 +60,9 @@ class Config:
         """Get Hugging Face token from secrets or environment"""
         try:
             # Try to get from Streamlit secrets first
-            token = "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"
-            # if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
-            #     token = st.secrets["huggingface"]["token"]
-            #     print(f"✅ HF token loaded from secrets: {token[:10]}...")
+            if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
+                token = st.secrets["huggingface"]["token"]
+                print(f"✅ HF token loaded from secrets: {token[:10]}...")
                 return token
         except Exception as e:
             print(f"❌ Error loading HF token from secrets: {e}")
