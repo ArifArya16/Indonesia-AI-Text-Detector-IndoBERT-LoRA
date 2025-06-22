@@ -122,7 +122,7 @@ class Utils:
             mode = "gauge+number+delta",
             value = ai_probability * 100,
             domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Tingkat Kepercayaan AI (%)"},
+            title = {'text': "Persentase Teks AI (%)"},
             delta = {'reference': 50},
             gauge = {
                 'axis': {'range': [None, 100]},
