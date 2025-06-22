@@ -1,10 +1,9 @@
 """
-Configuration file for AI Text Detector - FIXED VERSION (No Debug Output)
+Configuration file for AI Text Detector - FIXED VERSION
 """
 
 import os
 import streamlit as st
-import logging
 
 class Config:
     # Model configuration constants
@@ -32,42 +31,53 @@ class Config:
     }
     
     # Logging
-    LOG_LEVEL = "ERROR"  # Changed from INFO to ERROR to reduce output
+    LOG_LEVEL = "INFO"
     LOG_FILE = "logs/app.log"
     
     # Session settings
     SESSION_TIMEOUT = 3600  # 1 hour in seconds
     
-    # Model settings - Updated for silent operation
+    # Model settings - Updated for proper Hugging Face integration
     @staticmethod
     def get_model_name():
-        """Get model name from secrets or environment (silent operation)"""
+        """Get model name from secrets or environment"""
         try:
             # Try to get from Streamlit secrets first
             if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
-                return st.secrets["huggingface"]["model_name"]
-        except Exception:
-            pass  # Silent fail
+                model_name = st.secrets["huggingface"]["model_name"]
+                print(f"✅ Model name loaded from secrets: {model_name}")
+                return model_name
+        except Exception as e:
+            print(f"❌ Error loading model name from secrets: {e}")
         
         # Fallback to environment variable
-        return os.getenv("HF_MODEL_NAME", "Aureonn/indobert-ai-detector-private")
+        model_name = os.getenv("HF_MODEL_NAME", "Aureonn/indobert-ai-detector-private")
+        print(f"📦 Using model name from environment/default: {model_name}")
+        return model_name
     
     @staticmethod
     def get_hf_token():
-        """Get Hugging Face token from secrets or environment (silent operation)"""
+        """Get Hugging Face token from secrets or environment"""
         try:
             # Try to get from Streamlit secrets first
             if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
-                return st.secrets["huggingface"]["token"]
-        except Exception:
-            pass  # Silent fail
+                token = st.secrets["huggingface"]["token"]
+                print(f"✅ HF token loaded from secrets: {token[:10]}...")
+                return token
+        except Exception as e:
+            print(f"❌ Error loading HF token from secrets: {e}")
         
         # Fallback to environment variable
-        return os.getenv("HF_TOKEN", None)
+        token = os.getenv("HF_TOKEN", None)
+        if token:
+            print(f"📦 Using HF token from environment: {token[:10]}...")
+        else:
+            print("❌ No HF token found in environment")
+        return token
     
     @staticmethod
     def validate_config():
-        """Validate that all required configuration is available (silent)"""
+        """Validate that all required configuration is available"""
         model_name = Config.get_model_name()
         hf_token = Config.get_hf_token()
         
