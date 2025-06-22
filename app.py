@@ -448,8 +448,8 @@ class AITextDetectorApp:
             st.markdown("### 📊 Interpretasi Hasil")
             st.markdown("""
             - **0-30%**: Sangat mungkin teks manusia
-            - **30-70%**: Tidak pasti
-            - **70-100%**: Sangat mungkin teks AI
+            - **30-60%**: Tidak pasti
+            - **60-100%**: Sangat mungkin teks AI
             """)
         
         # Analysis results
@@ -508,7 +508,7 @@ class AITextDetectorApp:
             with col2:
                 confidence_color = "🔴" if st.session_state.analisis_text['confidence_level'] == 'high' else "🟠" if st.session_state.analisis_text['confidence_level'] == 'medium' else "🟢"
                 st.metric(
-                    "Tingkat Kepercayaan",
+                    "Persentase Teks AI",
                     f"{confidence_color} {st.session_state.analisis_text['confidence_level'].upper()}"
                 )
             
@@ -531,7 +531,7 @@ class AITextDetectorApp:
                     st.error(f"🚨 **TEKS KEMUNGKINAN DIBUAT AI** ({st.session_state.analisis_text['ai_probability']:.1%})")
                     st.markdown("Teks ini memiliki karakteristik yang mirip dengan hasil generasi AI.")
                 else:
-                    st.success(f"✅ **TEKS KEMUNGKINAN DIBUAT MANUSIA** ({st.session_state.analisis_text['ai_probability']:.1%})")
+                    st.success(f"✅ **TEKS KEMUNGKINAN DIBUAT MANUSIA **")
                     st.markdown("Teks ini memiliki karakteristik penulisan manusia.")
                 
                 # Highlighted text
