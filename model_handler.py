@@ -1,16 +1,17 @@
 """
-Model handler for AI Text Detector - Hugging Face Only Version
+Model handler dengan debug authentication yang lebih detail
 """
 
 import torch
 import streamlit as st
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from huggingface_hub import login
+from huggingface_hub import login, HfApi
 import numpy as np
 from config import Config
 from text_preprocessor import TextPreprocessor
 import logging
 import traceback
+import requests
 
 class ModelHandler:
     def __init__(self):
@@ -23,72 +24,185 @@ class ModelHandler:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
     
+    def debug_hf_config(self):
+        """Debug Hugging Face configuration"""
+        st.write("🔍 **Debugging Hugging Face Configuration:**")
+        
+        # Check token
+        hf_token = Config.get_hf_token()
+        model_name = Config.get_model_name()
+        
+        if hf_token:
+            st.write(f"✅ Token found: {hf_token[:10]}...")
+            st.write(f"📝 Token length: {len(hf_token)}")
+            st.write(f"🔑 Token format valid: {hf_token.startswith('hf_')}")
+        else:
+            st.write("❌ No token found")
+            return False
+        
+        if model_name:
+            st.write(f"✅ Model name: {model_name}")
+        else:
+            st.write("❌ No model name found")
+            return False
+        
+        return True
+    
+    def test_hf_api_access(self):
+        """Test Hugging Face API access"""
+        try:
+            hf_token = Config.get_hf_token()
+            model_name = Config.get_model_name()
+            
+            st.write("🧪 **Testing API Access:**")
+            
+            # Test 1: Basic API test
+            try:
+                api = HfApi(token=hf_token)
+                user_info = api.whoami()
+                st.write(f"✅ Token valid for user: {user_info.get('name', 'Unknown')}")
+            except Exception as e:
+                st.write(f"❌ Token validation failed: {str(e)}")
+                return False
+            
+            # Test 2: Model access test
+            try:
+                model_info = api.model_info(model_name)
+                st.write(f"✅ Model accessible: {model_info.modelId}")
+                st.write(f"🏷️ Model private: {model_info.private}")
+            except Exception as e:
+                st.write(f"❌ Model access failed: {str(e)}")
+                return False
+            
+            # Test 3: Direct API call
+            try:
+                headers = {"Authorization": f"Bearer {hf_token}"}
+                url = f"https://huggingface.co/api/models/{model_name}"
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    st.write("✅ Direct API call successful")
+                elif response.status_code == 401:
+                    st.write("❌ Unauthorized - check token permissions")
+                    return False
+                elif response.status_code == 404:
+                    st.write("❌ Model not found")
+                    return False
+                else:
+                    st.write(f"❌ API error: {response.status_code}")
+                    return False
+            except Exception as e:
+                st.write(f"❌ Direct API test failed: {str(e)}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            st.write(f"❌ API test failed: {str(e)}")
+            return False
+    
     def authenticate_huggingface(self):
         """Authenticate with Hugging Face using token from secrets"""
         try:
             hf_token = Config.get_hf_token()
+            
             if not hf_token:
                 self.logger.error("No Hugging Face token found in configuration")
+                st.error("❌ Hugging Face token tidak ditemukan")
                 return False
             
             # Validate token format
             if not hf_token.startswith('hf_'):
                 self.logger.error("Invalid Hugging Face token format")
+                st.error("❌ Format Hugging Face token tidak valid (harus dimulai dengan 'hf_')")
                 return False
             
+            # Test token first
+            try:
+                api = HfApi(token=hf_token)
+                user_info = api.whoami()
+                st.write(f"✅ Token valid untuk user: {user_info.get('name', 'Unknown')}")
+            except Exception as e:
+                st.error(f"❌ Token tidak valid: {str(e)}")
+                return False
+            
+            # Login to Hugging Face
             login(token=hf_token, add_to_git_credential=False)
             self.logger.info("✅ Successfully authenticated with Hugging Face")
+            st.success("✅ Berhasil login ke Hugging Face")
             return True
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to authenticate with Hugging Face: {str(e)}")
+            error_msg = str(e)
+            self.logger.error(f"❌ Failed to authenticate with Hugging Face: {error_msg}")
+            st.error(f"❌ Gagal login ke Hugging Face: {error_msg}")
+            
+            # Provide specific guidance
+            if "401" in error_msg or "unauthorized" in error_msg.lower():
+                st.error("🔐 **Token tidak valid atau expired**")
+                st.write("- Cek token di Hugging Face Settings")
+                st.write("- Generate token baru jika perlu")
+            elif "403" in error_msg or "forbidden" in error_msg.lower():
+                st.error("🚫 **Tidak ada akses ke model**")
+                st.write("- Pastikan token punya akses ke model private")
+                st.write("- Hubungi owner model untuk akses")
+            
             return False
     
     @st.cache_resource
     def load_model(_self):
-        """Load the model from Hugging Face Hub"""
+        """Load the model from Hugging Face Hub with detailed debugging"""
         try:
-            # Validate configuration first
+            # Debug configuration
+            if not _self.debug_hf_config():
+                raise Exception("Konfigurasi tidak valid")
+            
+            # Test API access
+            if not _self.test_hf_api_access():
+                raise Exception("API access test failed")
+            
             model_name = Config.get_model_name()
             hf_token = Config.get_hf_token()
-            
-            if not model_name:
-                raise Exception("Model name tidak ditemukan dalam konfigurasi")
-            
-            if not hf_token:
-                raise Exception("Hugging Face token tidak ditemukan")
             
             _self.logger.info(f"🔄 Loading model from Hugging Face Hub: {model_name}")
             
             # Authenticate with Hugging Face
             if not _self.authenticate_huggingface():
-                raise Exception("Failed to authenticate with Hugging Face")
+                raise Exception("Authentication failed")
             
-            # Load tokenizer with progress indication
-            with st.spinner("🔤 Loading tokenizer..."):
-                _self.logger.info("Loading tokenizer...")
-                _self.tokenizer = AutoTokenizer.from_pretrained(
-                    model_name,
-                    use_auth_token=hf_token,
-                    trust_remote_code=True
-                )
-                st.success("✅ Tokenizer loaded successfully")
+            # Load tokenizer with detailed error handling
+            try:
+                with st.spinner("🔤 Loading tokenizer..."):
+                    _self.logger.info("Loading tokenizer...")
+                    _self.tokenizer = AutoTokenizer.from_pretrained(
+                        model_name,
+                        token=hf_token,  # Use 'token' instead of 'use_auth_token'
+                        trust_remote_code=True
+                    )
+                    st.success("✅ Tokenizer loaded successfully")
+            except Exception as e:
+                st.error(f"❌ Gagal load tokenizer: {str(e)}")
+                raise e
             
-            # Load model with progress indication
-            with st.spinner("🤖 Loading model..."):
-                _self.logger.info("Loading model...")
-                _self.model = AutoModelForSequenceClassification.from_pretrained(
-                    model_name,
-                    num_labels=2,
-                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                    use_auth_token=hf_token,
-                    trust_remote_code=True
-                )
-                
-                # Move to device and set to eval mode
-                _self.model = _self.model.to(_self.device)
-                _self.model.eval()
-                st.success("✅ Model loaded successfully")
+            # Load model with detailed error handling
+            try:
+                with st.spinner("🤖 Loading model..."):
+                    _self.logger.info("Loading model...")
+                    _self.model = AutoModelForSequenceClassification.from_pretrained(
+                        model_name,
+                        num_labels=2,
+                        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                        token=hf_token,  # Use 'token' instead of 'use_auth_token'
+                        trust_remote_code=True
+                    )
+                    
+                    # Move to device and set to eval mode
+                    _self.model = _self.model.to(_self.device)
+                    _self.model.eval()
+                    st.success("✅ Model loaded successfully")
+            except Exception as e:
+                st.error(f"❌ Gagal load model: {str(e)}")
+                raise e
             
             _self.loaded = True
             _self.logger.info(f"✅ Model loaded successfully on {_self.device}")
@@ -96,6 +210,7 @@ class ModelHandler:
             # Display model info
             st.info(f"📋 Model: {model_name}")
             st.info(f"💻 Device: {_self.device}")
+            st.info(f"🎯 Model Labels: {_self.model.config.num_labels}")
             
             return _self
             
@@ -103,25 +218,7 @@ class ModelHandler:
             error_msg = str(e)
             _self.logger.error(f"❌ Error loading model: {error_msg}")
             
-            # Provide specific error guidance in Streamlit
             st.error(f"❌ Gagal memuat model: {error_msg}")
-            
-            if "401" in error_msg or "authentication" in error_msg.lower():
-                st.error("🔐 **Error Autentikasi:**")
-                st.write("- Pastikan Hugging Face token valid")
-                st.write("- Periksa apakah token memiliki akses ke model private")
-                st.write("- Coba regenerate token di Hugging Face")
-                
-            elif "404" in error_msg or "not found" in error_msg.lower():
-                st.error("🔍 **Model Tidak Ditemukan:**")
-                st.write("- Periksa nama model di konfigurasi")
-                st.write("- Pastikan model tersedia di Hugging Face")
-                st.write(f"- Model yang dicari: {Config.get_model_name()}")
-                
-            elif "connection" in error_msg.lower() or "timeout" in error_msg.lower():
-                st.error("🌐 **Masalah Koneksi:**")
-                st.write("- Periksa koneksi internet")
-                st.write("- Coba lagi dalam beberapa menit")
             
             # Show detailed error in expander
             with st.expander("🔧 Detail Error (untuk debugging)"):
@@ -129,9 +226,10 @@ class ModelHandler:
             
             # Suggest solutions
             st.info("💡 **Solusi yang bisa dicoba:**")
-            st.write("1. Refresh halaman dan coba lagi")
-            st.write("2. Periksa konfigurasi Hugging Face token")
-            st.write("3. Pastikan model masih tersedia")
+            st.write("1. Periksa token Hugging Face di secrets")
+            st.write("2. Pastikan token memiliki akses ke model")
+            st.write("3. Coba generate token baru")
+            st.write("4. Hubungi owner model jika private")
             
             raise Exception(f"Failed to load model: {error_msg}")
     
@@ -196,10 +294,7 @@ class ModelHandler:
             return 0.0
     
     def predict_text(self, input_text):
-        """
-        Predict AI probability for input text
-        Returns: dict with prediction results
-        """
+        """Predict AI probability for input text"""
         if not input_text or not input_text.strip():
             return {
                 'ai_probability': 0.0,
@@ -248,7 +343,7 @@ class ModelHandler:
                     })
                     ai_probabilities.append(0.0)
             
-            # Calculate overall AI probability (weighted average by chunk length)
+            # Calculate overall AI probability
             if ai_probabilities:
                 chunk_lengths = [len(chunk.split()) for chunk in chunks]
                 total_length = sum(chunk_lengths)
@@ -265,7 +360,7 @@ class ModelHandler:
             # Calculate human probability
             human_probability = 1.0 - weighted_ai_prob
             
-            # Determine if text is AI-generated
+            # Determine prediction
             is_ai_generated = weighted_ai_prob > Config.AI_THRESHOLD
             prediction = 'AI' if is_ai_generated else 'Human'
             
@@ -278,7 +373,7 @@ class ModelHandler:
             else:
                 confidence_level = 'low'
             
-            # Generate highlighted parts (chunks that are likely AI)
+            # Generate highlighted parts
             highlighted_parts = []
             for chunk_pred in chunk_predictions:
                 if chunk_pred.get('ai_probability', 0) > Config.AI_THRESHOLD:
@@ -303,40 +398,6 @@ class ModelHandler:
         except Exception as e:
             self.logger.error(f"Error in predict_text: {str(e)}")
             raise Exception(f"Prediction failed: {str(e)}")
-    
-    def get_sentence_level_predictions(self, input_text):
-        """
-        Get sentence-level predictions for more granular highlighting
-        """
-        if not self.is_model_loaded():
-            raise ValueError("Model not loaded")
-        
-        sentences = self.preprocessor.split_into_sentences(input_text)
-        sentence_predictions = []
-        
-        for i, sentence in enumerate(sentences):
-            if sentence.strip():
-                try:
-                    ai_prob = self.predict_single_chunk(sentence)
-                    sentence_predictions.append({
-                        'sentence_id': i,
-                        'text': sentence,
-                        'ai_probability': ai_prob,
-                        'human_probability': 1.0 - ai_prob,
-                        'is_ai': ai_prob > Config.AI_THRESHOLD
-                    })
-                except Exception as e:
-                    self.logger.error(f"Error predicting sentence {i}: {str(e)}")
-                    sentence_predictions.append({
-                        'sentence_id': i,
-                        'text': sentence,
-                        'ai_probability': 0.0,
-                        'human_probability': 1.0,
-                        'is_ai': False,
-                        'error': str(e)
-                    })
-        
-        return sentence_predictions
 
 # Global model handler instance
 @st.cache_resource
