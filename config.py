@@ -12,8 +12,8 @@ class Config:
     USE_HUGGINGFACE_HUB = True
     
     # Thresholds
-    AI_THRESHOLD = 0.7  # 70% confidence untuk menentukan teks AI
-    HIGH_CONFIDENCE_THRESHOLD = 0.85  # 85% untuk confidence tinggi
+    AI_THRESHOLD = 0.6  # 70% confidence untuk menentukan teks AI
+    HIGH_CONFIDENCE_THRESHOLD = 0.80  # 85% untuk confidence tinggi
     
     # Database
     DATABASE_PATH = "database/users.db"
