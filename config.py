@@ -45,14 +45,12 @@ class Config:
             # Try to get from Streamlit secrets first
             if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
                 model_name = st.secrets["huggingface"]["model_name"]
-                print(f"✅ Model name loaded from secrets: {model_name}")
                 return model_name
         except Exception as e:
             print(f"❌ Error loading model name from secrets: {e}")
         
         # Fallback to environment variable
         model_name = os.getenv("HF_MODEL_NAME", "Aureonn/indobert-ai-detector-private")
-        print(f"📦 Using model name from environment/default: {model_name}")
         return model_name
     
     @staticmethod
@@ -62,7 +60,6 @@ class Config:
             # Try to get from Streamlit secrets first
             if hasattr(st, 'secrets') and 'huggingface' in st.secrets:
                 token = st.secrets["huggingface"]["token"]
-                print(f"✅ HF token loaded from secrets: {token[:10]}...")
                 return token
         except Exception as e:
             print(f"❌ Error loading HF token from secrets: {e}")
@@ -70,7 +67,6 @@ class Config:
         # Fallback to environment variable
         token = os.getenv("HF_TOKEN", None)
         if token:
-            print(f"📦 Using HF token from environment: {token[:10]}...")
         else:
             print("❌ No HF token found in environment")
         return token
