@@ -12,9 +12,87 @@ from text_preprocessor import TextPreprocessor
 import logging
 import os
 
+# Move the cached function outside the class
+@st.cache_resource
+def _load_model_cached():
+    """Load the model from Hugging Face Hub - cached version"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Authenticate with Hugging Face
+        hf_token = Config.get_hf_token()
+        if hf_token:
+            login(token=hf_token, add_to_git_credential=False)
+            logger.info("Successfully authenticated with Hugging Face")
+        else:
+            logger.warning("No Hugging Face token found")
+            raise Exception("No Hugging Face token found")
+        
+        model_name = Config.get_model_name()
+        logger.info(f"Loading model from Hugging Face Hub: {model_name}")
+        
+        # Load tokenizer
+        logger.info("Loading tokenizer...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            use_auth_token=hf_token,
+            trust_remote_code=True
+        )
+        
+        # Load model
+        logger.info("Loading model...")
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            num_labels=2,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            use_auth_token=hf_token,
+            trust_remote_code=True
+        )
+        
+        # Move to device and set to eval mode
+        model = model.to(device)
+        model.eval()
+        
+        logger.info(f"Model loaded successfully on {device}")
+        
+        return model, tokenizer, device
+        
+    except Exception as e:
+        logger.error(f"Error loading model from Hugging Face: {str(e)}")
+        
+        # Fallback to local model if available
+        logger.info("Attempting to load local fallback model...")
+        try:
+            from peft import PeftModel
+            
+            logger.info("Loading local model as fallback...")
+            
+            # Load tokenizer
+            tokenizer = AutoTokenizer.from_pretrained("./indobert_ai_detector")
+            
+            # Load base model
+            base_model = AutoModelForSequenceClassification.from_pretrained(
+                Config.BASE_MODEL_NAME,
+                num_labels=2,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+            )
+            
+            # Load model with LoRA adapters
+            model = PeftModel.from_pretrained(base_model, "./indobert_ai_detector")
+            model = model.to(device)
+            model.eval()
+            
+            logger.info("Local fallback model loaded successfully")
+            return model, tokenizer, device
+            
+        except Exception as local_error:
+            logger.error(f"Local model loading failed: {str(local_error)}")
+            raise Exception(f"Both Hugging Face and local model loading failed. HF Error: {str(e)}, Local Error: {str(local_error)}")
+
 class ModelHandler:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = None
         self.tokenizer = None
         self.model = None
         self.preprocessor = TextPreprocessor()
@@ -38,84 +116,23 @@ class ModelHandler:
             self.logger.error(f"Failed to authenticate with Hugging Face: {str(e)}")
             return False
     
-    @st.cache_resource
     def load_model(self):
-        """Load the model from Hugging Face Hub"""
+        """Load the model using cached function"""
         try:
-            # Authenticate with Hugging Face
-            if not self.authenticate_huggingface():
-                raise Exception("Failed to authenticate with Hugging Face")
-            
-            model_name = Config.get_model_name()
-            self.logger.info(f"Loading model from Hugging Face Hub: {model_name}")
-            
-            # Load tokenizer
-            self.logger.info("Loading tokenizer...")
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
-                use_auth_token=Config.get_hf_token(),
-                trust_remote_code=True
-            )
-            
-            # Load model
-            self.logger.info("Loading model...")
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
-                num_labels=2,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                use_auth_token=Config.get_hf_token(),
-                trust_remote_code=True
-            )
-            
-            # Move to device and set to eval mode
-            self.model = self.model.to(self.device)
-            self.model.eval()
-            
+            # Use the cached function
+            self.model, self.tokenizer, self.device = _load_model_cached()
             self.loaded = True
-            self.logger.info(f"Model loaded successfully on {self.device}")
-            
+            self.logger.info("Model loaded successfully via cached function")
             return self
             
         except Exception as e:
             self.logger.error(f"Error loading model: {str(e)}")
-            
-            # Fallback to local model if available
-            self.logger.info("Attempting to load local fallback model...")
-            try:
-                return self.load_local_model()
-            except Exception as local_error:
-                self.logger.error(f"Local model also failed: {str(local_error)}")
-                raise Exception(f"Both Hugging Face and local model loading failed. HF Error: {str(e)}, Local Error: {str(local_error)}")
+            raise e
     
     def load_local_model(self):
-        """Fallback method to load local model"""
-        try:
-            from peft import PeftModel
-            
-            self.logger.info("Loading local model as fallback...")
-            
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained("./indobert_ai_detector")
-            
-            # Load base model
-            base_model = AutoModelForSequenceClassification.from_pretrained(
-                Config.BASE_MODEL_NAME,
-                num_labels=2,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-            )
-            
-            # Load model with LoRA adapters
-            self.model = PeftModel.from_pretrained(base_model, "./indobert_ai_detector")
-            self.model = self.model.to(self.device)
-            self.model.eval()
-            
-            self.loaded = True
-            self.logger.info("Local fallback model loaded successfully")
-            return self
-            
-        except Exception as e:
-            self.logger.error(f"Local model loading failed: {str(e)}")
-            raise e
+        """Fallback method to load local model (deprecated - now handled in cached function)"""
+        self.logger.warning("load_local_model is deprecated. Use load_model() instead.")
+        return self.load_model()
     
     def cleanup_model(self):
         """Clean up model to free memory"""
