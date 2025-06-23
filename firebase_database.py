@@ -21,7 +21,7 @@ class FirebaseDatabase:
             # Ambil credentials dari Streamlit secrets
             try:
                 # Firebase config dari Streamlit secrets
-                firebase_secrets = st.secret['firebase']
+                firebase_secrets = st.secrets['firebase']
                 
                 # Create credentials dari secrets
                 cred = credentials.Certificate({
