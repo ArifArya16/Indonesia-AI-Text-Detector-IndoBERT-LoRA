@@ -398,10 +398,6 @@ class AITextDetectorApp:
             else:
                 st.info("Tidak ada pengguna yang ditemukan.")
 
-
-
-
-    
     def detection_page(self):
         """Text detection page - FIXED VERSION"""
         st.header("🔍 Analisis Teks AI")
@@ -502,7 +498,8 @@ class AITextDetectorApp:
                 st.metric(
                     "Probabilitas AI",
                     f"{st.session_state.analisis_text['ai_probability']:.1%}",
-                    delta="AI" if st.session_state.analisis_text['is_ai_generated'] else "Manusia"
+                    delta="AI" if st.session_state.analisis_text['is_ai_generated'] else "Manusia",
+                    delta_color="inverse" if st.session_state.analisis_text['is_ai_generated'] else "normal"
                 )
             
             with col2:
@@ -534,11 +531,83 @@ class AITextDetectorApp:
                     st.success(f"✅ **TEKS KEMUNGKINAN DIBUAT MANUSIA **")
                     st.markdown("Teks ini memiliki karakteristik penulisan manusia.")
                 
-                # Highlighted text
+                # Highlighted text with character limit
                 if st.session_state.analisis_text['highlighted_parts']:
                     st.markdown("### 🖍️ Bagian yang Dicurigai AI:")
+                    
+                    # Initialize session state for show full highlighted text
+                    if 'show_full_highlighted' not in st.session_state:
+                        st.session_state.show_full_highlighted = False
+                    
                     highlighted_text = Utils.highlight_ai_text(input_text, st.session_state.analisis_text['highlighted_parts'])
-                    st.markdown(highlighted_text, unsafe_allow_html=True)
+                    
+                    # Character limit for highlighted text (without HTML tags)
+                    HIGHLIGHT_LIMIT = 500  # Adjust this value as needed
+                    
+                    # Remove HTML tags to count actual text length
+                    import re
+                    clean_text = re.sub(r'<[^>]+>', '', highlighted_text)
+                    
+                    if len(clean_text) > HIGHLIGHT_LIMIT and not st.session_state.show_full_highlighted:
+                        # Show limited version with natural "Baca Selengkapnya" flow
+                        # Find a good cutoff point (try to cut at word boundary)
+                        limited_highlighted = highlighted_text[:HIGHLIGHT_LIMIT]
+                        
+                        # Try to cut at last complete word
+                        last_space = limited_highlighted.rfind(' ')
+                        if last_space > HIGHLIGHT_LIMIT - 100:  # If space is reasonably close to limit
+                            limited_highlighted = limited_highlighted[:last_space]
+                        
+                        # Create natural flow text with "Baca Selengkapnya" 
+                        display_text = f"{limited_highlighted}... [Baca Selengkapnya]"
+                        
+                        # Add custom CSS for link-like styling
+                        st.markdown("""
+                        <style>
+                        .highlight-text {
+                            line-height: 1.6;
+                        }
+                        .read-more-text {
+                            color: #1f77b4;
+                            font-weight: 600;
+                            text-decoration: none;
+                            font-size: 14px;
+                            cursor: pointer;
+                            margin-left: 8px;
+                            padding: 2px 8px;
+                            border-radius: 4px;
+                            background-color: rgba(31, 119, 180, 0.1);
+                            border: 1px solid rgba(31, 119, 180, 0.2);
+                            transition: all 0.2s ease;
+                        }
+                        .read-more-text:hover {
+                            background-color: rgba(31, 119, 180, 0.2);
+                            border-color: rgba(31, 119, 180, 0.4);
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        
+                        # Display the truncated highlighted text
+                        st.markdown(f'<div class="highlight-text">{limited_highlighted}...</div>', unsafe_allow_html=True)
+                        
+                        # Clean, minimal "Baca Selengkapnya" button styled like a link
+                        if st.button("📖 Baca Selengkapnya", key="show_full_highlight", 
+                                    help="Tampilkan seluruh bagian yang dicurigai AI"):
+                            st.session_state.show_full_highlighted = True
+                            st.rerun()
+                            
+                    else:
+                        # Show full text
+                        st.markdown(highlighted_text, unsafe_allow_html=True)
+                        
+                        # Show clean "Tampilkan Lebih Sedikit" if text was previously expanded
+                        if st.session_state.show_full_highlighted and len(clean_text) > HIGHLIGHT_LIMIT:
+                            st.markdown("---")  # Add separator
+                            
+                            if st.button("📄 Tampilkan Lebih Sedikit", key="hide_full_highlight",
+                                        help="Sembunyikan sebagian teks yang dicurigai AI"):
+                                st.session_state.show_full_highlighted = False
+                                st.rerun()
                     
             # Detailed analysis
             show_detail = st.checkbox(
