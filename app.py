@@ -330,8 +330,7 @@ class AITextDetectorApp:
         
         with col2:
             # Get unique usernames for filter
-            usernames = list(set([p['username'] for p in predictions]))
-            filter_user = st.selectbox("Filter User:", ["Semua"] + usernames)
+            filter_user = st.selectbox("Filter User:", ["Semua","Tanpa Guest"] )
         
         with col3:
             limit = st.selectbox("Tampilkan:", [25, 50, 100, 200])
@@ -344,7 +343,7 @@ class AITextDetectorApp:
             filtered_predictions = [p for p in filtered_predictions if p['is_ai_generated'] == is_ai]
         
         if filter_user != "Semua":
-            filtered_predictions = [p for p in filtered_predictions if p['username'] == filter_user]
+            filtered_predictions = [p for p in filtered_predictions if p['username'] != "Guest"]
         
         st.markdown(f"**Menampilkan {len(filtered_predictions)} prediksi**")
         
