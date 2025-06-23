@@ -633,7 +633,7 @@ class AITextDetectorApp:
             # Save result
                 if st.session_state.analisis_text_history != st.session_state.analisis_text:
                     prediction_id = self.db.save_prediction(
-                        "2",
+                        "VbaXMKSTAcnAZskAYQBZ",
                         input_text,
                         st.session_state.analisis_text['ai_probability'],
                         st.session_state.analisis_text['is_ai_generated'],
