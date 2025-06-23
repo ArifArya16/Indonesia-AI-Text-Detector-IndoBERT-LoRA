@@ -349,6 +349,15 @@ class AITextDetectorApp:
         filtered_predictionss = filtered_predictions[:limit]
         st.markdown(f"**Menampilkan {len(filtered_predictionss)} prediksi**")
         
+        if st.button("📥 Export ke CSV"):
+                csv_data = Utils.export_predictions_to_csv(filtered_predictionss)
+                if csv_data:
+                    st.download_button(
+                        "Download CSV",
+                        csv_data,
+                        file_name=f"prediction_history_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
         # Display predictions
         for pred in filtered_predictions:
             with st.expander(f"🤖 {pred['username']} - {pred['created_at'][:16]} ({'AI' if pred['is_ai_generated'] else 'Manusia'})"):
