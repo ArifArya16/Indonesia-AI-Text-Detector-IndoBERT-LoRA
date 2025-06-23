@@ -6,7 +6,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import bcrypt
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import streamlit as st
 from config import Config
 
@@ -21,7 +21,7 @@ class FirebaseDatabase:
             # Ambil credentials dari Streamlit secrets
             try:
                 # Firebase config dari Streamlit secrets
-                firebase_secrets = st.secrets["firebase"]
+                firebase_secrets = st.secret['firebase']
                 
                 # Create credentials dari secrets
                 cred = credentials.Certificate({
@@ -43,8 +43,6 @@ class FirebaseDatabase:
                 raise e
         
         # Create default users
-        self.create_admin_user()
-        self.create_guest_user()
     
     def create_admin_user(self):
         """Create default admin user"""
@@ -114,8 +112,8 @@ class FirebaseDatabase:
         """Get all users for admin"""
         try:
             users_ref = self.db.collection('users').order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
-            docs = users_ref.get()
-            
+            users = users_ref.get()
+            docs = [user for user in users if user.get('username') != 'Guest']
             users = []
             for doc in docs:
                 user_data = doc.to_dict()
@@ -203,12 +201,15 @@ class FirebaseDatabase:
         try:
             # Total users (excluding admins)
             users_ref = self.db.collection('users').where('role', '==', 'user')
-            total_users = len(users_ref.get())
+            users = users_ref.get()
+            filtered_users = [user for user in users if user.get('username') != 'Guest']
+            total_users = len(filtered_users)
             
             # Active users (logged in last 30 days)
-            thirty_days_ago = datetime.now().replace(day=datetime.now().day-30)
-            active_users_ref = self.db.collection('users').where('role', '==', 'user').where('last_login', '>=', thirty_days_ago)
-            active_users = len(active_users_ref.get())
+            active_users_ref = self.db.collection('users').where('role', '==', 'user').where('is_active', '==', True)
+            users = active_users_ref.get()
+            filtered_users_active = [user for user in users if user.get('username') != 'Guest']
+            active_users = len(filtered_users_active)
             
             # Total predictions
             predictions_ref = self.db.collection('predictions')
@@ -398,7 +399,8 @@ class FirebaseDatabase:
     def get_user_predictions(self, user_id, limit=50):
         """Get user's prediction history"""
         try:
-            predictions_ref = self.db.collection('predictions').where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
+            # Option 1: Simple query without ordering (then sort in Python)
+            predictions_ref = self.db.collection('predictions').where('user_id', '==', user_id).limit(limit * 2)  # Get more to account for sorting
             docs = predictions_ref.get()
             
             predictions = []
@@ -410,11 +412,29 @@ class FirebaseDatabase:
                     'ai_probability': pred_data.get('ai_probability'),
                     'is_ai_generated': pred_data.get('is_ai_generated'),
                     'highlighted_parts': pred_data.get('highlighted_parts', []),
-                    'created_at': pred_data.get('created_at').strftime('%Y-%m-%d %H:%M:%S') if pred_data.get('created_at') else ''
+                    'created_at': pred_data.get('created_at'),
+                    'created_at_str': pred_data.get('created_at').strftime('%Y-%m-%d %H:%M:%S') if pred_data.get('created_at') else ''
                 }
                 predictions.append(pred)
             
-            return predictions
+            # Sort by created_at in Python (descending order)
+            predictions.sort(key=lambda x: x['created_at'] if x['created_at'] else datetime.min, reverse=True)
+            
+            # Remove the datetime object from final result and limit
+            final_predictions = []
+            for pred in predictions[:limit]:
+                final_pred = {
+                    'id': pred['id'],
+                    'input_text': pred['input_text'],
+                    'ai_probability': pred['ai_probability'],
+                    'is_ai_generated': pred['is_ai_generated'],
+                    'highlighted_parts': pred['highlighted_parts'],
+                    'created_at': pred['created_at_str']
+                }
+                final_predictions.append(final_pred)
+            
+            return final_predictions
+            
         except Exception as e:
             print(f"Error getting user predictions: {e}")
             return []
