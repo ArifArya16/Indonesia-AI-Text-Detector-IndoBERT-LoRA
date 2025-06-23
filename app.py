@@ -336,16 +336,18 @@ class AITextDetectorApp:
             limit = st.selectbox("Tampilkan:", [25, 50, 100, 200])
         
         # Filter predictions
-        filtered_predictions = predictions[:limit]
+        filtered_predictions = predictions
         
         if filter_type != "Semua":
             is_ai = filter_type == "AI"
+            filtered_predictions = [p for p in filtered_predictions if p['is_ai_generated'] == is_ai]
             filtered_predictions = [p for p in filtered_predictions if p['is_ai_generated'] == is_ai]
         
         if filter_user != "Semua":
             filtered_predictions = [p for p in filtered_predictions if p['username'] != "Guest"]
         
-        st.markdown(f"**Menampilkan {len(filtered_predictions)} prediksi**")
+        filtered_predictionss = filtered_predictions[:limit]
+        st.markdown(f"**Menampilkan {len(filtered_predictionss)} prediksi**")
         
         # Display predictions
         for pred in filtered_predictions:
