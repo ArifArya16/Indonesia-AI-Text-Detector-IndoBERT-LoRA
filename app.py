@@ -289,7 +289,7 @@ class AITextDetectorApp:
             st.metric("Total User", stats['total_users'])
         
         with col2:
-            st.metric("User Aktif (30 hari)", stats['active_users'])
+            st.metric("User Aktif", stats['active_users'])
         
         with col3:
             st.metric("Total Prediksi", stats['total_predictions'])
@@ -633,7 +633,7 @@ class AITextDetectorApp:
             # Save result
                 if st.session_state.analisis_text_history != st.session_state.analisis_text:
                     prediction_id = self.db.save_prediction(
-                        "VbaXMKSTAcnAZskAYQBZ",
+                        "2",
                         input_text,
                         st.session_state.analisis_text['ai_probability'],
                         st.session_state.analisis_text['is_ai_generated'],
