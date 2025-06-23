@@ -118,24 +118,30 @@ class Utils:
     @staticmethod
     def create_confidence_gauge(ai_probability):
         """Create a gauge chart for AI confidence"""
+        # Determine if it's AI or Human based on probability
+        prediction_label = "AI" if ai_probability > 0.6 else "Human"
+        
         fig = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
+            mode = "gauge+number",
             value = ai_probability * 100,
             domain = {'x': [0, 1], 'y': [0, 1]},
             title = {'text': "Persentase Teks AI (%)"},
-            delta = {'reference': 50},
+            number = {
+                'font': {'size': 60, 'color': 'white'},
+                'suffix': f"<br><span style='font-size:18px; background-color:rgba(0,0,0,0.8); padding:5px 10px; border-radius:5px;'><b>{prediction_label}</b></span>"
+            },
             gauge = {
                 'axis': {'range': [None, 100]},
                 'bar': {'color': "darkblue"},
                 'steps': [
                     {'range': [0, 30], 'color': "lightgray"},
-                    {'range': [30, 70], 'color': "yellow"},
-                    {'range': [70, 100], 'color': "red"}
+                    {'range': [30, 60], 'color': "yellow"},
+                    {'range': [60, 100], 'color': "red"}
                 ],
                 'threshold': {
                     'line': {'color': "red", 'width': 4},
                     'thickness': 0.75,
-                    'value': 70
+                    'value': 60
                 }
             }
         ))
@@ -273,7 +279,7 @@ class Utils:
                 
                 # Confidence level
                 confidence_html = Utils.format_confidence_level(
-                    'high' if prediction['ai_probability'] > 0.85 else 'medium' if prediction['ai_probability'] > 0.7 else 'low',
+                    'high' if prediction['ai_probability'] > 0.8 else 'medium' if prediction['ai_probability'] > 0.6 else 'low',
                     prediction['ai_probability']
                 )
                 st.markdown(f"**Tingkat Kepercayaan:** {confidence_html}", unsafe_allow_html=True)
