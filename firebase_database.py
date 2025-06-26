@@ -290,28 +290,33 @@ class FirebaseDatabase:
             return []
     
     def create_user(self, username, email, password):
-        """Create a new user"""
+        """Create a new user with proper validation (case-insensitive)"""
         try:
-            # Check if username or email already exists
             users_ref = self.db.collection('users')
             
-            # Check username
-            username_query = users_ref.where('username', '==', username).limit(1)
-            if username_query.get():
-                return None  # Username already exists
+            # Check username (case-insensitive) - get all users and check manually
+            all_users = users_ref.get()
+            for user_doc in all_users:
+                existing_username = user_doc.to_dict().get('username', '')
+                if existing_username.lower() == username.lower():
+                    print(f"Username '{username}' already exists (case-insensitive)")
+                    return None  # Username already exists
             
-            # Check email
-            email_query = users_ref.where('email', '==', email).limit(1)
-            if email_query.get():
-                return None  # Email already exists
+            # Check email (case-insensitive)
+            for user_doc in all_users:
+                existing_email = user_doc.to_dict().get('email', '')
+                if existing_email.lower() == email.lower():
+                    print(f"Email '{email}' already exists (case-insensitive)")
+                    return None  # Email already exists
             
             # Hash password
             password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
             
-            # Create user
+            # Create user data (store original case but add lowercase fields for easier querying)
             user_data = {
-                'username': username,
-                'email': email,
+                'username': username,  # Store original case
+                'username_lower': username.lower(),  # For case-insensitive queries
+                'email': email.lower(),  # Store email in lowercase
                 'password_hash': password_hash,
                 'role': 'user',
                 'created_at': datetime.now(),
@@ -319,36 +324,96 @@ class FirebaseDatabase:
                 'is_active': True
             }
             
+            # Add user to database
             doc_ref = self.db.collection('users').add(user_data)
+            print(f"User created successfully with ID: {doc_ref[1].id}")
             return doc_ref[1].id  # Return document ID
             
         except Exception as e:
             print(f"Error creating user: {e}")
+            st.error(f"Error creating user: {e}")
             return None
     
     def authenticate_user(self, username, password):
-        """Authenticate user login"""
+        """Authenticate user login with case-insensitive username"""
         try:
+            if not username or not password:
+                return None, "Username dan password harus diisi"
+            
             users_ref = self.db.collection('users')
-            query = users_ref.where('username', '==', username).limit(1)
-            docs = query.get()
+            # Get all users and check manually for case-insensitive match
+            all_users = users_ref.get()
             
-            if docs:
-                doc = docs[0]
+            user_doc = None
+            for doc in all_users:
                 user_data = doc.to_dict()
-                
-                if not user_data.get('is_active', True):
-                    return None, "Akun Anda telah dinonaktifkan"
-                
-                password_hash = user_data.get('password_hash')
-                if bcrypt.checkpw(password.encode('utf-8'), password_hash):
-                    self.update_last_login(doc.id)
-                    return doc.id, user_data.get('role', 'user')
+                existing_username = user_data.get('username', '')
+                if existing_username.lower() == username.lower():
+                    user_doc = doc
+                    break
             
-            return None, "Username atau password salah"
+            if not user_doc:
+                print(f"User '{username}' not found")
+                return None, "Username atau password salah"
+            
+            user_data = user_doc.to_dict()
+            
+            # Check if account is active
+            if not user_data.get('is_active', True):
+                print(f"Account '{username}' is deactivated")
+                return None, "Akun Anda telah dinonaktifkan"
+            
+            # Verify password
+            password_hash = user_data.get('password_hash')
+            if not password_hash:
+                print(f"No password hash found for user '{username}'")
+                return None, "Error sistem, silakan hubungi administrator"
+            
+            if bcrypt.checkpw(password.encode('utf-8'), password_hash):
+                # Update last login
+                self.update_last_login(user_doc.id)
+                user_role = user_data.get('role', 'user')
+                actual_username = user_data.get('username')  # Get the original case username
+                print(f"User '{actual_username}' authenticated successfully with role '{user_role}'")
+                return user_doc.id, user_role
+            else:
+                print(f"Invalid password for user '{username}'")
+                return None, "Username atau password salah"
+            
         except Exception as e:
             print(f"Error authenticating user: {e}")
-            return None, f"Error: {e}"
+            return None, f"Error sistem: {e}"
+    
+    def get_actual_username(self, user_id):
+        """Get the actual username (with original case) from user ID"""
+        try:
+            doc_ref = self.db.collection('users').document(user_id)
+            doc = doc_ref.get()
+            
+            if doc.exists:
+                return doc.to_dict().get('username')
+            return None
+        except Exception as e:
+            print(f"Error getting actual username: {e}")
+            return None
+    
+    
+    def check_username_exists(self, username):
+        """Check if username already exists (case-insensitive)"""
+        try:
+            users_ref = self.db.collection('users')
+            all_users = users_ref.get()
+            
+            for user_doc in all_users:
+                existing_username = user_doc.to_dict().get('username', '')
+                if existing_username.lower() == username.lower():
+                    return True
+            
+            return False
+        except Exception as e:
+            print(f"Error checking username: {e}")
+            return True  # Return True to be safe
+    
     
     def update_last_login(self, user_id):
         """Update user's last login timestamp"""
