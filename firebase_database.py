@@ -397,6 +397,22 @@ class FirebaseDatabase:
             print(f"Error getting actual username: {e}")
             return None
     
+    def check_email_exists(self, email):
+        """Check if email already exists (case-insensitive)"""
+        try:
+            users_ref = self.db.collection('users')
+            all_users = users_ref.get()
+            
+            for user_doc in all_users:
+                existing_email = user_doc.to_dict().get('email', '')
+                if existing_email.lower() == email.lower():
+                    return True
+            
+            return False
+        except Exception as e:
+            print(f"Error checking email: {e}")
+            return True  # Return True to be safe
+
     
     def check_username_exists(self, username):
         """Check if username already exists (case-insensitive)"""
