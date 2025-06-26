@@ -30,12 +30,12 @@ class Auth:
         return True, "Username valid"
     
     def login_form(self):
-        """Display login form - UBAH METHOD INI"""
+        """Display login form with better error handling"""
         st.subheader("🔐 Login")
         
         with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
+            username = st.text_input("Username", help="Masukkan username Anda (tidak peduli besar/kecil huruf)")
+            password = st.text_input("Password", type="password", help="Masukkan password Anda")
             submit_button = st.form_submit_button("Login")
             
             if submit_button:
@@ -43,40 +43,54 @@ class Auth:
                     st.error("Username dan password harus diisi")
                     return False
                 
-                result = self.db.authenticate_user(username, password)
-                if isinstance(result, tuple) and len(result) == 2:
-                    user_id, role = result
-                    if user_id:
-                        st.session_state.user_id = user_id
-                        st.session_state.username = username
-                        st.session_state.user_role = role
-                        st.session_state.authenticated = True
-                        st.session_state.login = False
-                        st.success("Login berhasil!")
-                        st.rerun()
+                # Show loading spinner
+                with st.spinner("Memverifikasi akun..."):
+                    result = self.db.authenticate_user(username, password)
+                    
+                    if isinstance(result, tuple) and len(result) == 2:
+                        user_id, role_or_error = result
+                        
+                        if user_id:
+                            # Get actual username from database (with original case)
+                            actual_username = self.db.get_actual_username(user_id)
+                            
+                            # Login successful
+                            st.session_state.user_id = user_id
+                            st.session_state.username = actual_username or username
+                            st.session_state.user_role = role_or_error
+                            st.session_state.authenticated = True
+                            st.session_state.login = False
+                            
+                            st.success(f"🎉 Login berhasil! Selamat datang, {actual_username or username}!")
+                            
+                            # Small delay to show success message
+                            import time
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            # Login failed - role_or_error contains error message
+                            st.error(f"❌ {role_or_error}")
+                            return False
                     else:
-                        st.error(role)  # role contains error message
+                        st.error("❌ Terjadi kesalahan sistem, silakan coba lagi")
                         return False
-                else:
-                    st.error("Username atau password salah")
-                    return False
         
         return False
     
     
     def register_form(self):
-        """Display registration form"""
+        """Display registration form with better validation"""
         st.subheader("📝 Daftar Akun Baru")
         
         with st.form("register_form"):
-            username = st.text_input("Username")
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
+            username = st.text_input("Username", help="Minimal 3 karakter, hanya huruf, angka, dan underscore")
+            email = st.text_input("Email", help="Masukkan email yang valid")
+            password = st.text_input("Password", type="password", help="Minimal 6 karakter")
             confirm_password = st.text_input("Konfirmasi Password", type="password")
             submit_button = st.form_submit_button("Daftar")
             
             if submit_button:
-                # Validation
+                # Basic field validation
                 if not all([username, email, password, confirm_password]):
                     st.error("Semua field harus diisi")
                     return False
@@ -85,6 +99,11 @@ class Auth:
                 username_valid, username_msg = self.validate_username(username)
                 if not username_valid:
                     st.error(username_msg)
+                    return False
+                
+                # Check if username already exists
+                if self.db.check_username_exists(username):
+                    st.error("Username sudah digunakan, silakan pilih username lain")
                     return False
                 
                 # Validate email
@@ -103,15 +122,21 @@ class Auth:
                     st.error("Password dan konfirmasi password tidak sama")
                     return False
                 
-                # Try to create user
-                user_id = self.db.create_user(username, email, password)
-                if user_id:
-                    st.success("Akun berhasil dibuat! Silakan login.")
-                    st.session_state.show_register = False
-                    st.rerun()
-                else:
-                    st.error("Username atau email sudah digunakan")
-                    return False
+                # Show loading spinner
+                with st.spinner("Membuat akun..."):
+                    # Try to create user
+                    user_id = self.db.create_user(username, email, password)
+                    
+                    if user_id:
+                        st.success("🎉 Akun berhasil dibuat! Silakan login dengan akun baru Anda.")
+                        st.session_state.show_register = False
+                        # Small delay to show success message
+                        import time
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Gagal membuat akun. Username atau email mungkin sudah digunakan.")
+                        return False
         
         return False
     
