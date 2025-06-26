@@ -110,6 +110,11 @@ class Auth:
                 if not self.validate_email(email):
                     st.error("Format email tidak valid")
                     return False
+
+                # Check if email already exists
+                if self.db.check_email_exists(email):
+                    st.error("Email sudah digunakan, silakan gunakan email lain")
+                    return False
                 
                 # Validate password
                 password_valid, password_msg = self.validate_password(password)
